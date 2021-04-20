@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -56,5 +58,77 @@ func main() {
 		}
 	}
 
-	fmt.Println(addresses)
+	ch := make(chan string)
+
+	// Non-blocking read from standard input.
+	go func(ch chan string) {
+		fmt.Println("Type messages in the console to send to other nodes.")
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			s, err := reader.ReadString('\n')
+			if err != nil {
+				close(ch)
+				log.Fatal(err.Error())
+				return
+			}
+			ch <- strings.TrimSpace(s)
+		}
+	}(ch)
+
+	// Instantiate listener.
+	l, err := net.Listen("tcp", addresses[0].host+":"+addresses[0].port)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer l.Close()
+
+	go func() {
+		for {
+			// Wait for a connection.
+			conn, err := l.Accept()
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			go func(c net.Conn) {
+				netData, err := bufio.NewReader(c).ReadString('\n')
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
+
+				log.Println(c.LocalAddr().String() + " > " + strings.TrimSpace(string(netData)))
+
+				c.Close()
+			}(conn)
+		}
+	}()
+
+eventloop:
+	for {
+		select {
+		case stdin, ok := <-ch:
+			if !ok {
+				break eventloop
+			} else {
+				fmt.Println("Sending `" + stdin + "` to other nodes.")
+
+				for _, addr := range addresses {
+					if !addr.willListen {
+						go func() {
+							conn, err := net.Dial("tcp", addr.host+":"+addr.port)
+							if err != nil {
+								log.Fatalf("Failed to dial: %v", err)
+							}
+							defer conn.Close()
+
+							if _, err := conn.Write([]byte(stdin)); err != nil {
+								log.Fatal(err)
+							}
+						}()
+					}
+				}
+			}
+		}
+	}
 }
