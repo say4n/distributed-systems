@@ -111,8 +111,6 @@ eventloop:
 			if !ok {
 				break eventloop
 			} else {
-				fmt.Println("Sending `" + stdin + "` to other nodes.")
-
 				for _, addr := range addresses {
 					if !addr.willListen {
 						go func() {
@@ -121,6 +119,8 @@ eventloop:
 								log.Fatalf("Failed to dial: %v", err)
 							}
 							defer conn.Close()
+
+							fmt.Println("Sending `" + stdin + "` to" + addr.host + ":" + addr.port + ".")
 
 							if _, err := conn.Write([]byte(stdin)); err != nil {
 								log.Fatal(err)
