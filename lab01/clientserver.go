@@ -77,7 +77,7 @@ func main() {
 
 	// Instantiate listener.
 	l, err := net.Listen("tcp", addresses[0].host+":"+addresses[0].port)
-	if err != nil {
+	if err != nil && err.Error() != "EOF" {
 		log.Fatal(err)
 	}
 	defer l.Close()
@@ -91,14 +91,12 @@ func main() {
 			}
 
 			go func(c net.Conn) {
-				log.Println("Message from " + c.RemoteAddr().String())
-
 				netData, err := bufio.NewReader(c).ReadString('\n')
 				if err != nil {
-					panic(err)
+					log.Println(err.Error())
 				}
 
-				log.Println(c.RemoteAddr().String() + " > " + string(netData))
+				log.Println("Message from " + c.RemoteAddr().String() + " > " + string(netData))
 
 				c.Close()
 			}(conn)
@@ -122,13 +120,14 @@ eventloop:
 							if err != nil {
 								log.Fatalf("Failed to dial: %v", err)
 							}
-							defer conn.Close()
 
 							fmt.Println("Sending `" + data + "` to " + addr.host + ":" + addr.port + ".")
 
-							if _, err := conn.Write([]byte(data)); err != nil {
+							if _, err := conn.Write([]byte(data + "\n")); err != nil {
 								log.Fatal(err)
 							}
+
+							conn.Close()
 						}(addrItem, data)
 					}
 				}
