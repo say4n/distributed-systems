@@ -91,13 +91,14 @@ func main() {
 			}
 
 			go func(c net.Conn) {
+				log.Println("Message from " + c.RemoteAddr().String())
+
 				netData, err := bufio.NewReader(c).ReadString('\n')
 				if err != nil {
-					log.Fatal(err)
-					return
+					panic(err)
 				}
 
-				log.Println(c.LocalAddr().String() + " > " + strings.TrimSpace(string(netData)))
+				log.Println(c.RemoteAddr().String() + " > " + string(netData))
 
 				c.Close()
 			}(conn)
@@ -111,21 +112,24 @@ eventloop:
 			if !ok {
 				break eventloop
 			} else {
+				data := stdin
+
 				for _, addrItem := range addresses {
 					if !addrItem.willListen {
-						go func(addr address, stdin string) {
+
+						go func(addr address, data string) {
 							conn, err := net.Dial("tcp", addr.host+":"+addr.port)
 							if err != nil {
 								log.Fatalf("Failed to dial: %v", err)
 							}
 							defer conn.Close()
 
-							fmt.Println("Sending `" + stdin + "` to" + addr.host + ":" + addr.port + ".")
+							fmt.Println("Sending `" + data + "` to " + addr.host + ":" + addr.port + ".")
 
-							if _, err := conn.Write([]byte(stdin)); err != nil {
+							if _, err := conn.Write([]byte(data)); err != nil {
 								log.Fatal(err)
 							}
-						}(addrItem, stdin)
+						}(addrItem, data)
 					}
 				}
 			}
