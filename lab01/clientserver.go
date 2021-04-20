@@ -93,7 +93,7 @@ func main() {
 			go func(c net.Conn) {
 				netData, err := bufio.NewReader(c).ReadString('\n')
 				if err != nil {
-					fmt.Println(err)
+					log.Fatal(err)
 					return
 				}
 
@@ -111,9 +111,9 @@ eventloop:
 			if !ok {
 				break eventloop
 			} else {
-				for _, addr := range addresses {
-					if !addr.willListen {
-						go func() {
+				for _, addrItem := range addresses {
+					if !addrItem.willListen {
+						go func(addr address, stdin string) {
 							conn, err := net.Dial("tcp", addr.host+":"+addr.port)
 							if err != nil {
 								log.Fatalf("Failed to dial: %v", err)
@@ -125,7 +125,7 @@ eventloop:
 							if _, err := conn.Write([]byte(stdin)); err != nil {
 								log.Fatal(err)
 							}
-						}()
+						}(addrItem, stdin)
 					}
 				}
 			}
