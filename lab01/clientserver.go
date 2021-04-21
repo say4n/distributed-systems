@@ -62,7 +62,7 @@ func main() {
 
 	// Non-blocking read from standard input.
 	go func(ch chan string) {
-		fmt.Println("Type messages in the console to send to other nodes.")
+		fmt.Println("Type messages in the console and hit return to send.")
 		reader := bufio.NewReader(os.Stdin)
 		for {
 			s, err := reader.ReadString('\n')
@@ -96,9 +96,9 @@ func main() {
 					log.Println(err.Error())
 				}
 
-				log.Println("Message from " + c.RemoteAddr().String() + " > " + string(netData))
+				defer c.Close()
 
-				c.Close()
+				log.Print("Message from " + c.RemoteAddr().String() + " > " + string(netData))
 			}(conn)
 		}
 	}()
@@ -121,13 +121,13 @@ eventloop:
 								log.Fatalf("Failed to dial: %v", err)
 							}
 
+							defer conn.Close()
+
 							fmt.Println("Sending `" + data + "` to " + addr.host + ":" + addr.port + ".")
 
 							if _, err := conn.Write([]byte(data + "\n")); err != nil {
 								log.Fatal(err)
 							}
-
-							conn.Close()
 						}(addrItem, data)
 					}
 				}
