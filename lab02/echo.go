@@ -97,9 +97,6 @@ func main() {
 	self = addresses[0]
 	neighbours = addresses[1:]
 
-	log.Println("self : ", self)
-	log.Println("neighbours :", neighbours)
-
 	hasInitiated := false
 
 	go listener()
@@ -122,7 +119,7 @@ func main() {
 				}
 				hasInitiated = true
 			} else {
-				time.Sleep(3 * time.Second)
+				time.Sleep(1 * time.Second)
 
 				// Check if all neighbours have replied.
 				if allNeighboursReplied() {
@@ -162,7 +159,8 @@ func listener() {
 		decoder := gob.NewDecoder(conn)
 		var payloadData message
 		if err := decoder.Decode(&payloadData); err != nil {
-			log.Println(err.Error())
+			// If there is an error, skip the message.
+			continue
 		}
 
 		var id int
@@ -171,6 +169,11 @@ func listener() {
 				id = nid
 				break
 			}
+		}
+
+		// Invalid message.
+		if payloadData.NodeId == 0 {
+			continue
 		}
 
 		log.Printf("Received %s from node %d.\n", payloadData.Message, payloadData.NodeId)
@@ -243,7 +246,7 @@ func allNeighboursUp() bool {
 				break
 			}
 
-			time.Sleep(3 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 	}
 
