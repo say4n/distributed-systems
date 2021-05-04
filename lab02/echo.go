@@ -11,27 +11,32 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
-type address struct {
-	NodeId      int
-	Host        string
-	Port        string
-	IsInitiator bool
-}
+const (
+	TERMINATE = "#TERMINATE#"
+)
 
 type message struct {
 	NodeId  int
 	Host    string
 	Port    string
 	Message string
-	IsReply bool
+}
+type node struct {
+	NodeId        int
+	Host          string
+	Port          string
+	IsInitiator   bool
+	HaveSent      bool
+	HasReplied    bool
+	ParentMessage message
 }
 
-type graph struct {
-	Parent     address
-	Neighbours []address
-}
+var neighbours []node
+var self node
+var selfMutex sync.Mutex
 
 func main() {
 	// Setup and parse CLI flags.
@@ -55,173 +60,212 @@ func main() {
 	configData := string(configBytes)
 	scanner := bufio.NewScanner(strings.NewReader(configData))
 
-	addresses := make([]address, 0)
+	addresses := make([]node, 0)
 
 	for scanner.Scan() {
 		line := strings.Split(scanner.Text(), ":")
-		addr := line[0]
+		host := line[0]
 		port := line[1]
+
+		addr := node{
+			Host: host,
+			Port: port,
+		}
 
 		if len(line) == 4 || len(line) == 3 {
 			nodeId, _ := strconv.Atoi(line[2])
+			addr.NodeId = nodeId
 
 			if len(line) == 4 {
 				// Node is an initiator.
-				log.Println("Initiator node: " + addr + ":" + port)
-				addresses = append(addresses, address{nodeId, addr, port, true})
+				log.Println("Initiator node: " + addr.Host + ":" + addr.Port)
+				addr.IsInitiator = true
+				addresses = append(addresses, addr)
 			} else {
 				// Node is not an initiator.
-				log.Println("Non-initiator node: " + addr + ":" + port)
-				addresses = append(addresses, address{nodeId, addr, port, false})
+				log.Println("Non-initiator node: " + addr.Host + ":" + addr.Port)
+				addresses = append(addresses, addr)
 			}
 
 		} else if len(line) == 2 {
-			addresses = append(addresses, address{-1, addr, port, false})
+			addresses = append(addresses, addr)
 		} else {
 
 		}
 	}
 
-	selfAddr := addresses[0]
-	addresses = addresses[1:]
-	networkGraph := graph{}
-	var ngMutex sync.Mutex
+	self = addresses[0]
+	neighbours = addresses[1:]
 
-	l, err := net.Listen("tcp", selfAddr.Host+":"+selfAddr.Port)
-	if err != nil && err.Error() != "EOF" {
-		log.Fatal(err)
-	}
-	defer l.Close()
+	hasInitiated := false
 
-	// Send message to all children if node is an initiator.
-	if selfAddr.IsInitiator {
-		for _, node := range addresses {
-			sendMessage(selfAddr, node, "ping", false)
-		}
-	}
+	go listener()
 
-	// Check if message received from all neighbours (except its parent).
-	go func() {
-		goroutineShouldTerminate := false
+	// Main event loop.
+	if allNeighboursUp() {
+		done := false
+
 		for {
-			ngMutex.Lock()
+			msg := message{
+				NodeId: self.NodeId,
+				Host:   self.Host,
+				Port:   self.Port,
+			}
 
-			if len(addresses) == len(networkGraph.Neighbours) {
-				parentAddr := address{
-					Host: networkGraph.Parent.Host,
-					Port: networkGraph.Parent.Port,
+			// Initiate communication from initiator node.
+			if self.IsInitiator && !hasInitiated {
+				msg.Message = "ping"
+
+				for idx, recvAddr := range neighbours {
+					sendMessage(recvAddr, msg)
+					neighbours[idx].HaveSent = true
 				}
-
-				log.Printf("Node %d received message from all neighbours.\n", selfAddr.NodeId)
-				if selfAddr.IsInitiator {
-					for _, addr := range addresses {
-						sendMessage(selfAddr, addr, "TERMINATE", false)
-					}
-
-					log.Println("Terminating")
-					os.Exit(0)
-				} else {
-					// Send message to parent.
-					sendMessage(selfAddr, parentAddr, "pong", true)
-					goroutineShouldTerminate = true
-				}
-			}
-			ngMutex.Unlock()
-
-			if goroutineShouldTerminate {
-				break
-			}
-		}
-	}()
-
-	terminate := false
-	var tMutex sync.Mutex
-
-	for {
-		tMutex.Lock()
-		if terminate {
-			log.Println("Terminating.")
-			tMutex.Unlock()
-
-			break
-		}
-		tMutex.Unlock()
-
-		// Wait for a connection.
-		conn, err := l.Accept()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		// This goroutine enables handling a new connection in a concurrent
-		// way.
-		go func(c net.Conn) {
-			decoder := gob.NewDecoder(c)
-			var payloadData message
-			if err := decoder.Decode(&payloadData); err != nil {
-				log.Println(err.Error())
-			}
-
-			defer c.Close()
-
-			log.Printf("Node %d received message %s from node %d.\n", selfAddr.NodeId, payloadData.Message, payloadData.NodeId)
-
-			addr := address{
-				Host:   payloadData.Host,
-				Port:   payloadData.Port,
-				NodeId: payloadData.NodeId,
-			}
-
-			ngMutex.Lock()
-			if networkGraph.Parent == (address{}) {
-				// First communication, make sender parent of current node.
-				if !selfAddr.IsInitiator {
-					log.Println("Parent has ID :", payloadData.NodeId)
-
-					networkGraph.Parent = addr
-
-					// Send messages to all other neighbouring nodes.
-					for _, node := range addresses {
-						if node.Port != networkGraph.Parent.Port {
-							sendMessage(selfAddr, node, payloadData.Message, false)
-						}
-					}
-				}
+				hasInitiated = true
 			} else {
-				// Subsequent communications.
-				found := false
-				for _, tn := range networkGraph.Neighbours {
-					if tn.Port == payloadData.Port && tn.Host == payloadData.Host {
-						found = true
-						break
+				time.Sleep(1 * time.Second)
+
+				// Check if all neighbours have replied.
+				if allNeighboursReplied() {
+					// Send message to terminate.
+					if self.IsInitiator {
+						msg.Message = TERMINATE
+						done = true
+
+						for idx, recvAddr := range neighbours {
+							sendMessage(recvAddr, msg)
+							neighbours[idx].HaveSent = true
+						}
+					} else {
+						parent := node{
+							Host: self.ParentMessage.Host,
+							Port: self.ParentMessage.Port,
+						}
+
+						msg.Message = "pong"
+
+						sendMessage(parent, msg)
 					}
 				}
-				// Only add the node to the network graph if it is not a reply to
-				// a previously sent message.
-				if !found && payloadData.IsReply {
-					log.Printf("Received reply from node %d at %d\n", payloadData.NodeId, selfAddr.NodeId)
-					networkGraph.Neighbours = append(networkGraph.Neighbours, addr)
-				}
 			}
-			ngMutex.Unlock()
 
-			if payloadData.Message == "TERMINATE" {
-				tMutex.Lock()
-				terminate = true
-				tMutex.Unlock()
+			if self.IsInitiator && done {
+				os.Exit(0)
 			}
-		}(conn)
+		}
 	}
 }
 
-func sendMessage(selfAddr, recvAddr address, msg string, isReply bool) {
-	log.Println("Sending " + msg + " to " + recvAddr.Host + ":" + recvAddr.Port + ".")
+func listener() {
+	l, _ := net.Listen("tcp", self.Host+":"+self.Port)
+	defer l.Close()
+
+	log.Printf("Listening on %s:%s\n", self.Host, self.Port)
+
+	for {
+		conn, _ := l.Accept()
+
+		decoder := gob.NewDecoder(conn)
+		var payloadData message
+		if err := decoder.Decode(&payloadData); err != nil {
+			log.Println(err.Error())
+		}
+
+		var id int
+		for nid, n := range neighbours {
+			if n.Port == payloadData.Port {
+				id = nid
+				break
+			}
+		}
+
+		log.Printf("Received %s from node %d.\n", payloadData.Message, payloadData.NodeId)
+
+		if payloadData.Message == TERMINATE {
+			for _, n := range neighbours {
+				selfMutex.Lock()
+				if self.ParentMessage.Port != n.Port {
+					msg := message{
+						self.NodeId,
+						self.Host,
+						self.Port,
+						payloadData.Message}
+					sendMessage(n, msg)
+				}
+				selfMutex.Unlock()
+			}
+
+			os.Exit(0)
+		}
+
+		if self.IsInitiator {
+			neighbours[id].HasReplied = true
+		} else {
+			// If node has no parent. Make node that sent this message the parent.
+			selfMutex.Lock()
+			if self.ParentMessage == (message{}) {
+				self.ParentMessage = payloadData
+				neighbours[id].HasReplied = true
+
+				log.Printf("Parent of node %d is node %d", self.NodeId, payloadData.NodeId)
+
+				// Send message to all other neighbours.
+				for idx, receivingNode := range neighbours {
+					if receivingNode.Port != self.ParentMessage.Port {
+						msg := message{
+							self.NodeId,
+							self.Host,
+							self.Port,
+							"ping"}
+						sendMessage(receivingNode, msg)
+					}
+					neighbours[idx].HaveSent = true
+				}
+			} else {
+				neighbours[id].HasReplied = true
+			}
+			selfMutex.Unlock()
+		}
+	}
+}
+
+func allNeighboursUp() bool {
+	for _, addr := range neighbours {
+		for {
+			log.Printf("Trying to dial %s:%s\n", addr.Host, addr.Port)
+			conn, err := net.Dial("tcp", addr.Host+":"+addr.Port)
+
+			if err == nil {
+				conn.Close()
+				log.Printf("Successfully dialled %s:%s\n", addr.Host, addr.Port)
+				break
+			}
+
+			time.Sleep(time.Second)
+		}
+	}
+
+	return true
+}
+
+func allNeighboursReplied() bool {
+	allReplied := true
+	for _, addr := range neighbours {
+		if self.ParentMessage.Port != addr.Port && !addr.HasReplied {
+			allReplied = false
+		}
+	}
+
+	return allReplied
+}
+
+func sendMessage(recvAddr node, msg message) {
+	log.Printf("Sending %s to %s:%s.\n", msg.Message, recvAddr.Host, recvAddr.Port)
 	for {
 		conn, err := net.Dial("tcp", recvAddr.Host+":"+recvAddr.Port)
 
 		if err == nil {
 			encoder := gob.NewEncoder(conn)
-			if err := encoder.Encode(message{selfAddr.NodeId, selfAddr.Host, selfAddr.Port, msg, isReply}); err != nil {
+			if err := encoder.Encode(msg); err != nil {
 				log.Fatal(err)
 			}
 
@@ -231,5 +275,5 @@ func sendMessage(selfAddr, recvAddr address, msg string, isReply bool) {
 		}
 
 	}
-	log.Println("Sent " + msg + " to " + recvAddr.Host + ":" + recvAddr.Port + ".")
+	log.Println("Sent " + msg.Message + " to " + recvAddr.Host + ":" + recvAddr.Port + ".")
 }
