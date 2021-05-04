@@ -12,8 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/fatih/color"
 )
 
 // TERMINATE is a special message that is sent to terminate a child node.
@@ -209,8 +207,7 @@ func listener() {
 				self.ParentMessage = payloadData
 				neighbours[id].HasReplied = true
 
-				bold := color.New(color.Bold).SprintFunc()
-				log.Println(bold("Parent of node"), bold(self.NodeId), bold("is node "), bold(payloadData.NodeId))
+				log.Printf("Parent of node %d is node %d.\n", self.NodeId, payloadData.NodeId)
 
 				// // Send ping message to neighbours.
 				for idx, receivingNode := range neighbours {
