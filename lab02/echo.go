@@ -16,16 +16,26 @@ import (
 	"github.com/fatih/color"
 )
 
+// TERMINATE is a special message that is sent to terminate a child node.
 const (
 	TERMINATE = "#TERMINATE#"
 )
 
+// message is used to send payloads from one node to another.
+// messages carry ID of the sender node, Host (IP) of the sender, Port of the
+// sender and a string Message.
 type message struct {
 	NodeId  int
 	Host    string
 	Port    string
 	Message string
 }
+
+// node represents details pertaining to different nodes in the network graph.
+// NodeId is the ID of a node, Host is the IP address, Port is the port used,
+// IsInitiator indicates if a node is an initiator, HaveSent and HasReplied are
+// used to track whether nodes have sent and replied to messages, ParentMessage
+// is used to keep track of the parent of a node.
 type node struct {
 	NodeId        int
 	Host          string
@@ -36,9 +46,9 @@ type node struct {
 	ParentMessage message
 }
 
-var neighbours []node
-var self node
-var selfMutex sync.Mutex
+var neighbours []node    // Neighbours of the current node.
+var self node            // Current node (self)
+var selfMutex sync.Mutex // Mutex to manage access to member of self.
 
 func main() {
 	// Setup and parse CLI flags.
@@ -94,18 +104,19 @@ func main() {
 		}
 	}
 
-	self = addresses[0]
-	neighbours = addresses[1:]
+	self = addresses[0]        // Populate current node.
+	neighbours = addresses[1:] // Populate neighbours.
+	hasInitiated := false      // Track if initiation message has been sent.
 
-	hasInitiated := false
-
-	go listener()
+	go listener() // Run goroutine to listen for messages.
 
 	// Main event loop.
 	if allNeighboursUp() {
+		// If all neighbours are up then proceed with main event loop.
 		for {
 			// Initiate communication from initiator node.
 			if self.IsInitiator && !hasInitiated {
+				// Send ping message to neighbours.
 				msg := message{
 					NodeId:  self.NodeId,
 					Host:    self.Host,
@@ -123,10 +134,11 @@ func main() {
 
 				// Check if all neighbours have replied.
 				if allNeighboursReplied() {
-					// Send message to terminate.
 					if self.IsInitiator {
+						// Send message to terminate.
 						terminateNeighbours()
 					} else {
+						// Send pong message to parent.
 						parent := node{
 							Host: self.ParentMessage.Host,
 							Port: self.ParentMessage.Port,
@@ -147,6 +159,7 @@ func main() {
 	}
 }
 
+// listener listens for incoming connections.
 func listener() {
 	l, _ := net.Listen("tcp", self.Host+":"+self.Port)
 	defer l.Close()
@@ -178,16 +191,19 @@ func listener() {
 
 		log.Printf("Received %s from node %d.\n", payloadData.Message, payloadData.NodeId)
 
+		// Message to terminate received from parent.
 		if payloadData.Message == TERMINATE {
 			terminateNeighbours()
 		}
 
 		if self.IsInitiator {
 			if neighbours[id].HaveSent {
+				// Reply received from a node that was previously contacted.
 				neighbours[id].HasReplied = true
 			}
 		} else {
-			// If node has no parent. Make node that sent this message the parent.
+			// If node has no parent. Make node that sent this message the
+			// parent. Mutex used to restrict access to members of self struct.
 			selfMutex.Lock()
 			if (message{} == self.ParentMessage) {
 				self.ParentMessage = payloadData
@@ -196,7 +212,7 @@ func listener() {
 				bold := color.New(color.Bold).SprintFunc()
 				log.Println(bold("Parent of node"), bold(self.NodeId), bold("is node "), bold(payloadData.NodeId))
 
-				// Send message to all other neighbours.
+				// // Send ping message to neighbours.
 				for idx, receivingNode := range neighbours {
 					if receivingNode.Port != self.ParentMessage.Port {
 						msg := message{
@@ -206,10 +222,12 @@ func listener() {
 							"ping"}
 						sendMessage(receivingNode, msg)
 					}
+					// Mark message as being sent to node.
 					neighbours[idx].HaveSent = true
 				}
 			} else {
 				if neighbours[id].HaveSent {
+					// Reply received from a node that was previously contacted.
 					neighbours[id].HasReplied = true
 				}
 			}
@@ -218,6 +236,8 @@ func listener() {
 	}
 }
 
+// terminateNeighbours send messages to non parent neighbours of node to
+// terminate.
 func terminateNeighbours() {
 	for _, n := range neighbours {
 		selfMutex.Lock()
@@ -235,6 +255,8 @@ func terminateNeighbours() {
 	os.Exit(0)
 }
 
+// allNeighboursUp checks if all neighbours can be reached if not, it will
+// block till all neighbours are up.
 func allNeighboursUp() bool {
 	for _, addr := range neighbours {
 		for {
@@ -254,6 +276,7 @@ func allNeighboursUp() bool {
 	return true
 }
 
+// allNeighboursReplied checks if all neighbours have replied to a node.
 func allNeighboursReplied() bool {
 	allReplied := true
 	for _, addr := range neighbours {
@@ -265,6 +288,7 @@ func allNeighboursReplied() bool {
 	return allReplied
 }
 
+// sendMessage sends msg of type message to node recvAddr.
 func sendMessage(recvAddr node, msg message) {
 	log.Printf("Sending %s to %s:%s.\n", msg.Message, recvAddr.Host, recvAddr.Port)
 	for {
