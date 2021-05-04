@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 const (
@@ -193,7 +195,8 @@ func listener() {
 				self.ParentMessage = payloadData
 				neighbours[id].HasReplied = true
 
-				log.Printf("Parent of node %d is node %d", self.NodeId, payloadData.NodeId)
+				bold := color.New(color.Bold).SprintFunc()
+				log.Println(bold("Parent of node"), bold(self.NodeId), bold("is node "), bold(payloadData.NodeId))
 
 				// Send message to all other neighbours.
 				for idx, receivingNode := range neighbours {
