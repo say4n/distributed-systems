@@ -78,12 +78,12 @@ func main() {
 
 			if len(line) == 4 {
 				// Node is an initiator.
-				log.Println("Initiator node: " + addr.Host + ":" + addr.Port)
+				log.Printf("Initiator node %d (%s:%s)\n", addr.NodeId, addr.Host, addr.Port)
 				addr.IsInitiator = true
 				addresses = append(addresses, addr)
 			} else {
 				// Node is not an initiator.
-				log.Println("Non-initiator node: " + addr.Host + ":" + addr.Port)
+				log.Printf("Non-initiator node %d (%s:%s)\n", addr.NodeId, addr.Host, addr.Port)
 				addresses = append(addresses, addr)
 			}
 
@@ -97,24 +97,24 @@ func main() {
 	self = addresses[0]
 	neighbours = addresses[1:]
 
+	log.Println("self : ", self)
+	log.Println("neighbours :", neighbours)
+
 	hasInitiated := false
 
 	go listener()
 
 	// Main event loop.
 	if allNeighboursUp() {
-		done := false
-
 		for {
-			msg := message{
-				NodeId: self.NodeId,
-				Host:   self.Host,
-				Port:   self.Port,
-			}
-
 			// Initiate communication from initiator node.
 			if self.IsInitiator && !hasInitiated {
-				msg.Message = "ping"
+				msg := message{
+					NodeId:  self.NodeId,
+					Host:    self.Host,
+					Port:    self.Port,
+					Message: "ping",
+				}
 
 				for idx, recvAddr := range neighbours {
 					sendMessage(recvAddr, msg)
@@ -122,34 +122,29 @@ func main() {
 				}
 				hasInitiated = true
 			} else {
-				time.Sleep(1 * time.Second)
+				time.Sleep(3 * time.Second)
 
 				// Check if all neighbours have replied.
 				if allNeighboursReplied() {
 					// Send message to terminate.
 					if self.IsInitiator {
-						msg.Message = TERMINATE
-						done = true
-
-						for idx, recvAddr := range neighbours {
-							sendMessage(recvAddr, msg)
-							neighbours[idx].HaveSent = true
-						}
+						terminateNeighbours()
 					} else {
 						parent := node{
 							Host: self.ParentMessage.Host,
 							Port: self.ParentMessage.Port,
 						}
 
-						msg.Message = "pong"
+						msg := message{
+							NodeId:  self.NodeId,
+							Host:    self.Host,
+							Port:    self.Port,
+							Message: "pong",
+						}
 
 						sendMessage(parent, msg)
 					}
 				}
-			}
-
-			if self.IsInitiator && done {
-				os.Exit(0)
 			}
 		}
 	}
@@ -181,28 +176,17 @@ func listener() {
 		log.Printf("Received %s from node %d.\n", payloadData.Message, payloadData.NodeId)
 
 		if payloadData.Message == TERMINATE {
-			for _, n := range neighbours {
-				selfMutex.Lock()
-				if self.ParentMessage.Port != n.Port {
-					msg := message{
-						self.NodeId,
-						self.Host,
-						self.Port,
-						payloadData.Message}
-					sendMessage(n, msg)
-				}
-				selfMutex.Unlock()
-			}
-
-			os.Exit(0)
+			terminateNeighbours()
 		}
 
 		if self.IsInitiator {
-			neighbours[id].HasReplied = true
+			if neighbours[id].HaveSent {
+				neighbours[id].HasReplied = true
+			}
 		} else {
 			// If node has no parent. Make node that sent this message the parent.
 			selfMutex.Lock()
-			if self.ParentMessage == (message{}) {
+			if (message{} == self.ParentMessage) {
 				self.ParentMessage = payloadData
 				neighbours[id].HasReplied = true
 
@@ -221,11 +205,30 @@ func listener() {
 					neighbours[idx].HaveSent = true
 				}
 			} else {
-				neighbours[id].HasReplied = true
+				if neighbours[id].HaveSent {
+					neighbours[id].HasReplied = true
+				}
 			}
 			selfMutex.Unlock()
 		}
 	}
+}
+
+func terminateNeighbours() {
+	for _, n := range neighbours {
+		selfMutex.Lock()
+		if self.ParentMessage.Port != n.Port {
+			msg := message{
+				self.NodeId,
+				self.Host,
+				self.Port,
+				TERMINATE}
+			sendMessage(n, msg)
+		}
+		selfMutex.Unlock()
+	}
+
+	os.Exit(0)
 }
 
 func allNeighboursUp() bool {
@@ -240,7 +243,7 @@ func allNeighboursUp() bool {
 				break
 			}
 
-			time.Sleep(time.Second)
+			time.Sleep(3 * time.Second)
 		}
 	}
 
@@ -263,17 +266,15 @@ func sendMessage(recvAddr node, msg message) {
 	for {
 		conn, err := net.Dial("tcp", recvAddr.Host+":"+recvAddr.Port)
 
-		if err == nil {
+		if err == nil && msg.NodeId != 0 {
 			encoder := gob.NewEncoder(conn)
 			if err := encoder.Encode(msg); err != nil {
 				log.Fatal(err)
 			}
 
 			conn.Close()
-
 			break
 		}
-
 	}
 	log.Println("Sent " + msg.Message + " to " + recvAddr.Host + ":" + recvAddr.Port + ".")
 }
