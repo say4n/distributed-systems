@@ -91,8 +91,6 @@ func main() {
 
 		} else if len(line) == 2 {
 			addresses = append(addresses, addr)
-		} else {
-
 		}
 	}
 
