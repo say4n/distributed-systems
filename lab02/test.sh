@@ -1,35 +1,27 @@
 #! /bin/bash
 
-osascript -e 'tell application "iTerm2"
+# Usage: ./test.sh
+
+osascript -e '
+set numInstances to 5
+
+tell application "iTerm2"
     tell current window
-        set newTab to (create tab with default profile)
-        tell current session of newTab
-            write text "go run echo.go -config config/configFile_6001.txt 2> 6001.log"
-            write text "cat 6001.log"
-        end tell
+        set configFiles to {}
 
-        set newTab to (create tab with default profile)
-        tell current session of newTab
-            write text "go run echo.go -config config/configFile_6002.txt 2> 6002.log"
-            write text "cat 6002.log"
-        end tell
+        repeat with n from 1 to numInstances
+            set cfgfile to "config/configFile_600" & n & ".txt"
+            set configFiles to configFiles & {cfgfile}
+        end repeat
 
-        set newTab to (create tab with default profile)
-        tell current session of newTab
-            write text "go run echo.go -config config/configFile_6003.txt 2> 6003.log"
-            write text "cat 6003.log"
-        end tell
 
-        set newTab to (create tab with default profile)
-        tell current session of newTab
-            write text "go run echo.go -config config/configFile_6004.txt 2> 6004.log"
-            write text "cat 6004.log"
-        end tell
-
-        set newTab to (create tab with default profile)
-        tell current session of newTab
-            write text "go run echo.go -config config/configFile_6005.txt 2> 6005.log"
-            write text "cat 6005.log"
-        end tell
+        repeat with cfgFile in configFiles
+            set newTab to (create tab with default profile)
+            tell current session of newTab
+                set runcmd to "go run echo.go -config " & cfgfile
+                write text runcmd
+            end tell
+        end repeat
     end tell
-end tell'
+end tell
+'
