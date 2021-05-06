@@ -285,7 +285,8 @@ func allNeighboursReplied() bool {
 	return allReplied
 }
 
-// sendMessage sends msg of type message to node recvAddr.
+// sendMessage sends msg of type message to node recvAddr. Retries sending
+// indefinitely.
 func sendMessage(recvAddr node, msg message) {
 	log.Printf("Sending %s to %s:%s.\n", msg.Message, recvAddr.Host, recvAddr.Port)
 	for {
