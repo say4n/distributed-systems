@@ -190,7 +190,7 @@ func listener() {
 		log.Printf("Received %s from node %d.\n", payloadData.Message, payloadData.NodeId)
 
 		// Message to terminate received from parent.
-		if payloadData.Message == TERMINATE {
+		if payloadData.Message == TERMINATE && payloadData.NodeId == self.ParentMessage.NodeId {
 			terminateNeighbours()
 		}
 
@@ -200,8 +200,9 @@ func listener() {
 				neighbours[id].HasReplied = true
 			}
 		} else {
-			// If node has no parent. Make node that sent this message the
-			// parent. Mutex used to restrict access to members of self struct.
+			// If node has no parent or wave tagged with higher id hits node.
+			// Make node that sent this message the parent.
+			// Mutex used to restrict access to members of self struct.
 			selfMutex.Lock()
 			if (message{} == self.ParentMessage) {
 				self.ParentMessage = payloadData
@@ -209,7 +210,7 @@ func listener() {
 
 				log.Printf("Parent of node %d is node %d.\n", self.NodeId, payloadData.NodeId)
 
-				// // Send ping message to neighbours.
+				// Send ping message to neighbours.
 				for idx, receivingNode := range neighbours {
 					if receivingNode.Port != self.ParentMessage.Port {
 						msg := message{
@@ -248,6 +249,9 @@ func terminateNeighbours() {
 		}
 		selfMutex.Unlock()
 	}
+
+	log.Println("Sleeping for 3 seconds before terminating.")
+	time.Sleep(3 * time.Second)
 
 	os.Exit(0)
 }
