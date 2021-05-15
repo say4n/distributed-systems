@@ -12,7 +12,7 @@ tell application "iTerm2"
         repeat with cfgFile in configFiles
             set newTab to (create tab with default profile)
             tell current session of newTab
-                set runcmd to "go run echo.go -config " & cfgfile
+                set runcmd to "go run election.go -config " & cfgfile
                 write text runcmd
             end tell
         end repeat
