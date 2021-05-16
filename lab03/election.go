@@ -214,7 +214,7 @@ func listener() {
 
 		if leaderChanged {
 			for nid, n := range neighbours {
-				neighbours[nid].HaveSent = false
+				neighbours[nid].HaveSent = true
 				neighbours[nid].HasReplied = false
 				hasInitiated = false
 
@@ -291,6 +291,7 @@ func terminateNeighbours() {
 		selfMutex.Unlock()
 	}
 
+	log.Println("Leader is:", self.Leader)
 	log.Println("Sleeping for 3 seconds before terminating.")
 	time.Sleep(3 * time.Second)
 
