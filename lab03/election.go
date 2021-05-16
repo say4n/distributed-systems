@@ -27,6 +27,7 @@ type message struct {
 	Host    string
 	Port    string
 	Message string
+	Leader  int
 }
 
 // node represents details pertaining to different nodes in the network graph.
@@ -41,12 +42,14 @@ type node struct {
 	IsInitiator   bool
 	HaveSent      bool
 	HasReplied    bool
+	Leader        int
 	ParentMessage message
 }
 
 var neighbours []node    // Neighbours of the current node.
 var self node            // Current node (self)
 var selfMutex sync.Mutex // Mutex to manage access to member of self.
+var hasInitiated bool    // Track if initiation message has been sent.
 
 func main() {
 	// Setup and parse CLI flags.
@@ -103,8 +106,11 @@ func main() {
 	}
 
 	self = addresses[0]        // Populate current node.
+	self.Leader = self.NodeId  // Initialize current node to leader.
 	neighbours = addresses[1:] // Populate neighbours.
-	hasInitiated := false      // Track if initiation message has been sent.
+	hasInitiated := false
+
+	log.Println("Current leader is", self.Leader)
 
 	go listener() // Run goroutine to listen for messages.
 
@@ -120,6 +126,7 @@ func main() {
 					Host:    self.Host,
 					Port:    self.Port,
 					Message: "ping",
+					Leader:  self.NodeId,
 				}
 
 				for idx, recvAddr := range neighbours {
@@ -147,6 +154,7 @@ func main() {
 							Host:    self.Host,
 							Port:    self.Port,
 							Message: "pong",
+							Leader:  self.Leader,
 						}
 
 						sendMessage(parent, msg)
@@ -194,6 +202,34 @@ func listener() {
 			terminateNeighbours()
 		}
 
+		leaderChanged := false
+
+		selfMutex.Lock()
+		if payloadData.Leader > self.Leader || self.Leader == 0 {
+			log.Printf("Changing leader to node %d.\n", payloadData.Leader)
+			self.Leader = payloadData.Leader
+			leaderChanged = true
+		}
+		selfMutex.Unlock()
+
+		if leaderChanged {
+			for nid, n := range neighbours {
+				neighbours[nid].HaveSent = false
+				neighbours[nid].HasReplied = false
+				hasInitiated = false
+
+				msg := message{
+					NodeId:  self.NodeId,
+					Host:    self.Host,
+					Port:    self.Port,
+					Message: "ping",
+					Leader:  self.Leader,
+				}
+
+				sendMessage(n, msg)
+			}
+		}
+
 		if self.IsInitiator {
 			if neighbours[id].HaveSent {
 				// Reply received from a node that was previously contacted.
@@ -204,6 +240,7 @@ func listener() {
 			// Make node that sent this message the parent.
 			// Mutex used to restrict access to members of self struct.
 			selfMutex.Lock()
+
 			if (message{} == self.ParentMessage) {
 				self.ParentMessage = payloadData
 				neighbours[id].HasReplied = true
@@ -214,10 +251,12 @@ func listener() {
 				for idx, receivingNode := range neighbours {
 					if receivingNode.Port != self.ParentMessage.Port {
 						msg := message{
-							self.NodeId,
-							self.Host,
-							self.Port,
-							"ping"}
+							NodeId:  self.NodeId,
+							Host:    self.Host,
+							Port:    self.Port,
+							Message: "ping",
+							Leader:  self.Leader,
+						}
 						sendMessage(receivingNode, msg)
 					}
 					// Mark message as being sent to node.
@@ -241,10 +280,12 @@ func terminateNeighbours() {
 		selfMutex.Lock()
 		if self.ParentMessage.Port != n.Port {
 			msg := message{
-				self.NodeId,
-				self.Host,
-				self.Port,
-				TERMINATE}
+				NodeId:  self.NodeId,
+				Host:    self.Host,
+				Port:    self.Port,
+				Message: TERMINATE,
+				Leader:  self.Leader,
+			}
 			sendMessage(n, msg)
 		}
 		selfMutex.Unlock()
@@ -292,7 +333,7 @@ func allNeighboursReplied() bool {
 // sendMessage sends msg of type message to node recvAddr. Retries sending
 // indefinitely.
 func sendMessage(recvAddr node, msg message) {
-	log.Printf("Sending %s to %s:%s.\n", msg.Message, recvAddr.Host, recvAddr.Port)
+	// log.Printf("Sending %s to %s:%s.\n", msg.Message, recvAddr.Host, recvAddr.Port)
 	for {
 		conn, err := net.Dial("tcp", recvAddr.Host+":"+recvAddr.Port)
 
@@ -305,6 +346,8 @@ func sendMessage(recvAddr node, msg message) {
 			conn.Close()
 			break
 		}
+
+		time.Sleep(1 * time.Second)
 	}
-	log.Println("Sent " + msg.Message + " to " + recvAddr.Host + ":" + recvAddr.Port + ".")
+	// log.Println("Sent " + msg.Message + " to " + recvAddr.Host + ":" + recvAddr.Port + ".")
 }
