@@ -222,7 +222,7 @@ func listener() {
 					NodeId:  self.NodeId,
 					Host:    self.Host,
 					Port:    self.Port,
-					Message: "ping",
+					Message: "leader changed",
 					Leader:  self.Leader,
 				}
 
@@ -334,7 +334,7 @@ func allNeighboursReplied() bool {
 // sendMessage sends msg of type message to node recvAddr. Retries sending
 // indefinitely.
 func sendMessage(recvAddr node, msg message) {
-	// log.Printf("Sending %s to %s:%s.\n", msg.Message, recvAddr.Host, recvAddr.Port)
+	log.Printf("Sending %s to %s:%s.\n", msg.Message, recvAddr.Host, recvAddr.Port)
 	for {
 		conn, err := net.Dial("tcp", recvAddr.Host+":"+recvAddr.Port)
 
@@ -350,5 +350,5 @@ func sendMessage(recvAddr node, msg message) {
 
 		time.Sleep(1 * time.Second)
 	}
-	// log.Println("Sent " + msg.Message + " to " + recvAddr.Host + ":" + recvAddr.Port + ".")
+	log.Printf("Sent %s to %s:%s.\n", msg.Message, recvAddr.Host, recvAddr.Port)
 }
