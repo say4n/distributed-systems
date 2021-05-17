@@ -110,6 +110,7 @@ func main() {
 	neighbours = addresses[1:] // Populate neighbours.
 	hasInitiated := false
 
+	// Current leader for each node is set to the ID of self.
 	log.Println("Current leader is", self.Leader)
 
 	go listener() // Run goroutine to listen for messages.
@@ -204,6 +205,7 @@ func listener() {
 
 		leaderChanged := false
 
+		// Change leader if a node with higher ID is received.
 		selfMutex.Lock()
 		if payloadData.Leader > self.Leader || self.Leader == 0 {
 			log.Printf("Changing leader to node %d.\n", payloadData.Leader)
@@ -212,11 +214,13 @@ func listener() {
 		}
 		selfMutex.Unlock()
 
+		// If leader has changed for current node then broadcast to all nodes
+		// about it.
 		if leaderChanged {
 			for nid, n := range neighbours {
-				neighbours[nid].HaveSent = true
-				neighbours[nid].HasReplied = false
-				hasInitiated = false
+				neighbours[nid].HaveSent = true    // Mark message as sent.
+				neighbours[nid].HasReplied = false // Mark reply as false.
+				hasInitiated = false               // Initiator needs to reinitiate.
 
 				msg := message{
 					NodeId:  self.NodeId,
