@@ -57,10 +57,6 @@ var randomId int         // Random ID.
 var status bool          // Current status of node.
 var numNodes int         // Size of the network.
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 func main() {
 	// Setup and parse CLI flags.
 	configFile := flag.String("config", "this is not a path", "Path to config file.")
@@ -104,7 +100,7 @@ func main() {
 				sendMessageToAllNeighbours(msg)
 				hasInitiated = true
 			} else {
-				time.Sleep(1 * time.Second)
+				time.Sleep(3 * time.Second)
 
 				size := computeSize()
 
@@ -154,8 +150,6 @@ func main() {
 						log.Printf("Network size: %d, Detected size: %d.\n", numNodes, size)
 						sendMessage(parent, msg)
 						resetActivities()
-
-						self.ParentMessage.Port = "0"
 					}
 				}
 			}
@@ -181,7 +175,8 @@ func resetActivities() {
 }
 
 func getRandomId() int {
-	return rand.Intn(numNodes-1) + 1
+	rand.Seed(time.Now().UnixNano())
+	return rand.Intn(numNodes) + 1
 }
 
 func computeSize() int {
@@ -208,7 +203,8 @@ func listener() {
 
 		decoder := gob.NewDecoder(conn)
 		var payloadData message
-		if err := decoder.Decode(&payloadData); err != nil {
+		err := decoder.Decode(&payloadData)
+		if err != nil {
 			// If there is an error, skip the message.
 			continue
 		}
@@ -242,7 +238,7 @@ func listener() {
 			neighbours[id].Size = payloadData.Size
 		} else {
 			if payloadData.Round > roundNumber || (payloadData.Round == roundNumber && payloadData.Leader > leader) {
-				log.Printf("Selecting %s:%s (%d) as leader.", payloadData.Host, payloadData.Port, payloadData.Leader)
+				log.Printf("Selecting %d as leader.", payloadData.Leader)
 				status = false
 				resetActivities()
 
