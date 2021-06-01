@@ -236,13 +236,13 @@ func listener() {
 			}
 		}
 
-		if payloadData.Message == "pong" {
+		if payloadData.Message == "pong" && neighbours[id].HaveSent {
 			log.Printf("Received reply from %s:%s.\n", payloadData.Host, payloadData.Port)
 			neighbours[id].HasReplied = true
 			neighbours[id].Size = payloadData.Size
 		} else {
 			if payloadData.Round > roundNumber || (payloadData.Round == roundNumber && payloadData.Leader > leader) {
-				log.Printf("Selecting %s:%s as leader.", payloadData.Host, payloadData.Port)
+				log.Printf("Selecting %s:%s (%d) as leader.", payloadData.Host, payloadData.Port, payloadData.Leader)
 				status = false
 				resetActivities()
 
@@ -264,14 +264,14 @@ func listener() {
 				sendMessageToAllNeighbours(msg)
 			}
 
+			if payloadData.Round < roundNumber || (payloadData.Round == roundNumber && payloadData.Leader < leader) {
+				log.Printf("Ignoring message from %s:%s. Current leader is: %d.\n", payloadData.Host, payloadData.Port, leader)
+			}
+
 			if payloadData.Round == roundNumber && payloadData.Leader == leader {
 				log.Printf("Leader %d remains unchanged.\n", leader)
 				neighbours[id].HasReplied = true
 				neighbours[id].Size = payloadData.Size
-			}
-
-			if payloadData.Round < roundNumber || (payloadData.Round == roundNumber && payloadData.Leader < leader) {
-				log.Printf("Ignoring message from %s:%s. Current leader is: %d.\n", payloadData.Host, payloadData.Port, leader)
 			}
 		}
 	}
