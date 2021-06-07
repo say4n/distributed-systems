@@ -1,0 +1,6 @@
+{
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar",
+        "/usr/local/Cellar/hadoop/3.3.0/libexec/share/hadoop/**/*.jar"
+    ]
+}
