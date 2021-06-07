@@ -4,11 +4,11 @@ all: build clean
 
 build: primary secondary
 
-primary: MatmulPrimary.java
+primary: MatmulPrimary.java clean
 	hadoop com.sun.tools.javac.Main MatmulPrimary.java
 	jar cf primary.jar MatmulPrimary*.class
 
-secondary: MatmulSecondary.java
+secondary: MatmulSecondary.java clean
 	hadoop com.sun.tools.javac.Main MatmulSecondary.java
 	jar cf secondary.jar MatmulSecondary*.class
 
@@ -22,6 +22,7 @@ exec-primary: primary.jar
 	hadoop fs -mkdir -p /matmul/input
 	hadoop fs -put -f input/*.mat /matmul/input
 	hadoop fs -ls /matmul/input
+	hadoop fs -rm -r -f /matmul/intermediate_output
 	hadoop jar primary.jar MatmulPrimary /matmul/input /matmul/intermediate_output
 
 clean:
