@@ -47,6 +47,8 @@ public class MatmulPrimary {
                 DoubleWritable ival = new DoubleWritable(val);
                 context.write(ikey, ival);
             }
+
+            line = br.readLine();
         }
     }
   }

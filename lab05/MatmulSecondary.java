@@ -18,11 +18,12 @@ public class MatmulSecondary {
     public void map(Object key, Text value, Context context
                     ) throws IOException, InterruptedException {
 
-        String[] keyString = key.toString().split(",");
+        String[] valueString = value.toString().split("\t");
+        String[] keyString = valueString[0].split(",");
         String i = keyString[0], k = keyString[2];
 
         Text ikey = new Text(i + "," + k);
-        DoubleWritable ival = new DoubleWritable(Double.parseDouble(value.toString()));
+        DoubleWritable ival = new DoubleWritable(Double.parseDouble(valueString[1]));
 
         context.write(ikey, ival);
     }
