@@ -24,27 +24,31 @@ public class MatmulPrimary {
         String line = br.readLine();
         while (line != null && !line.isEmpty()) {
             String[] values = line.split(",");
+
             int numRepeat;
             String r, c;
             double val;
+            boolean isFirstMatrix = false;
 
             numRepeat = Integer.parseInt(values[0]);
             r = values[1];
             c = values[2];
-
-            boolean isFirstMatrix = Integer.parseInt(values[4]) == 1;
-
             val = Double.parseDouble(values[3]);
+
+            if (Integer.parseInt(values[4]) == 1) {
+                isFirstMatrix = true;
+            }
 
             for(int i = 0; i < numRepeat; i++) {
                 Text ikey = new Text();
+                DoubleWritable ival = new DoubleWritable(val);
 
                 if (isFirstMatrix) {
                     ikey.set(r + "," + c + "," + Integer.toString(i));
                 } else {
-                    ikey.set(Integer.toString(i) + "," + r + "," + c);
+                    ikey.set(Integer.toString(i) + "," + c + "," + r);
                 }
-                DoubleWritable ival = new DoubleWritable(val);
+
                 context.write(ikey, ival);
             }
 

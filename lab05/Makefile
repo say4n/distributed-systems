@@ -1,14 +1,14 @@
 .PHONY: all
 
-all: build clean
+all: build
 
 build: primary secondary
 
-primary: MatmulPrimary.java
+primary: MatmulPrimary.java clean
 	hadoop com.sun.tools.javac.Main MatmulPrimary.java
 	jar cf primary.jar MatmulPrimary*.class
 
-secondary: MatmulSecondary.java
+secondary: MatmulSecondary.java clean
 	hadoop com.sun.tools.javac.Main MatmulSecondary.java
 	jar cf secondary.jar MatmulSecondary*.class
 
@@ -18,14 +18,18 @@ start-hadoop:
 stop-hadoop:
 	-$$HADOOP_HOME/sbin/stop-all.sh
 
+exec: exec-primary exec-secondary clean
+
 exec-primary: primary
-	hadoop fs -mkdir -p /matmul/input
+	hadoop fs -rm -r -f /matmul/input
+	hadoop fs -mkdir /matmul/input
 	hadoop fs -put -f *.mat /matmul/input
 	hadoop fs -ls /matmul/input
 	hadoop fs -rm -r -f /matmul/intermediate_output
 	hadoop jar primary.jar MatmulPrimary /matmul/input /matmul/intermediate_output
+	hadoop fs -cat /matmul/intermediate_output/*
 
-exec-secondary: secondary
+exec-secondary: secondary exec-primary
 	hadoop fs -rm -r -f /matmul/output
 	hadoop jar secondary.jar MatmulSecondary /matmul/intermediate_output /matmul/output
 	hadoop fs -cat /matmul/output/*
