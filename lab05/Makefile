@@ -22,7 +22,7 @@ execute: exec-primary exec-secondary
 
 exec-primary: primary.jar
 	hadoop fs -rm -r -f /matmul/input
-	hadoop fs -mkdir /matmul/input
+	hadoop fs -mkdir -p /matmul/input
 	hadoop fs -put -f *.mat /matmul/input
 	hadoop fs -ls /matmul/input
 	hadoop fs -rm -r -f /matmul/intermediate_output
