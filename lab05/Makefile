@@ -4,6 +4,10 @@ all: build
 
 build: primary secondary clean
 
+copy:
+	ssh bigdataupf 'rm -rf ~/matmul && mkdir -p ~/matmul'
+	scp * bigdataupf:~/matmul
+
 primary: MatmulPrimary.java
 	hadoop com.sun.tools.javac.Main MatmulPrimary.java
 	jar cf primary.jar MatmulPrimary*.class

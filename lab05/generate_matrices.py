@@ -19,7 +19,7 @@ def main(dim_a, dim_b):
         for row_b in range(dim_b[0]):
             for col_b in range(dim_b[1]):
                 # matrix_b_file.write(f"{i},{row_b},{col_b},{random.random() * 100:.2f},0\n")
-                if row_b == col_b:
+                if row_b + col_b + 1 == j:
                     matrix_b_file.write(f"{k},{row_b},{col_b},1,0\n")
                 else:
                     matrix_b_file.write(f"{k},{row_b},{col_b},0,0\n")
