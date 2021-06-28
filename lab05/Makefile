@@ -30,13 +30,11 @@ exec-primary: primary.jar
 	hadoop fs -put -f *.mat /matmul/input
 	hadoop fs -ls /matmul/input
 	hadoop fs -rm -r -f /matmul/intermediate_output
-	hadoop jar primary.jar MatmulPrimary /matmul/input /matmul/intermediate_output
-	hadoop fs -cat /matmul/intermediate_output/*
+	time hadoop jar primary.jar MatmulPrimary /matmul/input /matmul/intermediate_output
 
 exec-secondary: exec-primary secondary.jar
 	hadoop fs -rm -r -f /matmul/output
-	hadoop jar secondary.jar MatmulSecondary /matmul/intermediate_output /matmul/output
-	hadoop fs -cat /matmul/output/*
+	time hadoop jar secondary.jar MatmulSecondary /matmul/intermediate_output /matmul/output
 
 clean:
 	rm -f *.class
