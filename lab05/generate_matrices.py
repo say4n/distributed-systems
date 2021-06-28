@@ -8,21 +8,13 @@ def main(dim_a, dim_b):
     with open("a.mat", "wt") as matrix_a_file:
         for row_a in range(dim_a[0]):
             for col_a in range(dim_a[1]):
-                # matrix_a_file.write(f"{k},{row_a},{col_a},{random.random() * 100:.2f},1\n")
-                if row_a == col_a:
-                    matrix_a_file.write(f"{k},{row_a},{col_a},1,1\n")
-                else:
-                    matrix_a_file.write(f"{k},{row_a},{col_a},0,1\n")
+                matrix_a_file.write(f"{k},{row_a},{col_a},{int(random.random() * 100)},1\n")
 
     print("Writing matrix B to b.mat")
     with open("b.mat", "wt") as matrix_b_file:
         for row_b in range(dim_b[0]):
             for col_b in range(dim_b[1]):
-                # matrix_b_file.write(f"{i},{row_b},{col_b},{random.random() * 100:.2f},0\n")
-                if row_b + col_b + 1 == j:
-                    matrix_b_file.write(f"{k},{row_b},{col_b},1,0\n")
-                else:
-                    matrix_b_file.write(f"{k},{row_b},{col_b},0,0\n")
+                matrix_b_file.write(f"{i},{row_b},{col_b},{int(random.random() * 100)},0\n")
 
     print("Done.")
 

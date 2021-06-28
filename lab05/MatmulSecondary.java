@@ -20,9 +20,9 @@ public class MatmulSecondary {
 
         String[] valueString = value.toString().split("\t");
         String[] keyString = valueString[0].split(",");
-        String i = keyString[0], k = keyString[2];
+        String i = keyString[0], k = keyString[1], j = keyString[2];
 
-        Text ikey = new Text(i + "," + k);
+        Text ikey = new Text(i + "," + j);
         DoubleWritable ival = new DoubleWritable(Double.parseDouble(valueString[1]));
 
         context.write(ikey, ival);

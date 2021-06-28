@@ -46,7 +46,7 @@ public class MatmulPrimary {
                 if (isFirstMatrix) {
                     ikey.set(r + "," + c + "," + Integer.toString(i));
                 } else {
-                    ikey.set(Integer.toString(i) + "," + c + "," + r);
+                    ikey.set(Integer.toString(i) + "," + r + "," + c);
                 }
 
                 context.write(ikey, ival);
